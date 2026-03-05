@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from datetime import date, timedelta
+from sqlalchemy import func
 from models import db, Livre, Auteur, Emprunteur, Emprunt
 
 bp = Blueprint('biblio', __name__, url_prefix='/api')
@@ -52,19 +53,30 @@ def lister_livres():
     """
     genre = request.args.get('genre')
     q = request.args.get('q')
-    dispo_str = request.args.get('disponible')
-    query = Livre.query.join(Auteur)
+    dispo_str = request.args.get('disponible', 'false')
+    query = Livre.query
 
     if genre:
         query = query.filter(Livre.genre.ilike(f'%{genre}%'))
     if q:
         # Recherche sur le titre OU le nom de l'auteur
-        query = query.filter(
+        query = query.join(Auteur).filter(
             db.or_(Livre.titre.ilike(f'%{q}%'), Auteur.nom.ilike(f'%{q}%'))
         )
-    livres = query.all()
+
     if dispo_str == 'true':
-        livres = [l for l in livres if l.est_disponible]
+        # Sous-requête pour compter les emprunts actifs par livre
+        subquery = db.session.query(
+            Emprunt.livre_id,
+            func.count(Emprunt.id).label('emprunts_actifs')
+        ).filter(Emprunt.rendu == False).group_by(Emprunt.livre_id).subquery()
+
+        # Jointure externe et filtre
+        query = query.outerjoin(subquery, Livre.id == subquery.c.livre_id).filter(
+            Livre.nb_exemplaires > func.coalesce(subquery.c.emprunts_actifs, 0)
+        )
+
+    livres = query.all()
 
     return jsonify({'livres': [l.to_dict() for l in livres],
                     'total': len(livres)}), 200
@@ -196,17 +208,29 @@ def emprunts_en_retard():
 @bp.route('/stats', methods=['GET'])
 def statistiques():
     """Tableau de bord rapide de la bibliotheque."""
+    # Sous-requête pour compter les emprunts actifs par livre
+    subquery = db.session.query(
+        Emprunt.livre_id,
+        func.count(Emprunt.id).label('emprunts_actifs')
+    ).filter(Emprunt.rendu == False).group_by(Emprunt.livre_id).subquery()
+
+    # Compter les livres disponibles de manière optimisée
+    livres_dispos_count = db.session.query(func.count(Livre.id)).outerjoin(
+        subquery, Livre.id == subquery.c.livre_id
+    ).filter(
+        Livre.nb_exemplaires > func.coalesce(subquery.c.emprunts_actifs, 0)
+    ).scalar()
+
     return jsonify({
         'livres': Livre.query.count(),
         'auteurs': Auteur.query.count(),
         'emprunteurs': Emprunteur.query.count(),
         'emprunts_actifs': Emprunt.query.filter_by(rendu=False).count(),
-        # Requête optimisée pour compter les retards
         'en_retard': Emprunt.query.filter(
             Emprunt.rendu == False,
             Emprunt.date_retour_prevue < date.today()
         ).count(),
-        'livres_dispos': sum(1 for l in Livre.query.all() if l.est_disponible),
+        'livres_dispos': livres_dispos_count,
     }), 200
 
 

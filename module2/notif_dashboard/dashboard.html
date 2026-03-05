@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Temps Réel</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                Helvetica, Arial, sans-serif;
+            background: #f0f2f5;
+            color: #333;
+            margin: 0;
+            padding: 1.5rem;
+        }
+        h2, h3 {
+            color: #1a253c;
+            border-bottom: 2px solid #e1e4e8;
+            padding-bottom: 8px;
+            margin-top: 2rem;
+        }
+        #metriques {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .carte {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            padding: 1.5rem;
+            text-align: center;
+            flex: 1;
+            min-width: 140px;
+        }
+        .carte h3 {
+            margin: 0 0 0.5rem 0;
+            font-size: 1em;
+            font-weight: 500;
+            border: none;
+            color: #586069;
+        }
+        .carte .val {
+            font-size: 2.5em;
+            font-weight: 600;
+            color: #0366d6;
+        }
+        #notifs p {
+            padding: 0.75rem 1rem;
+            border-left: 5px solid #ccc;
+            margin: 0.5rem 0;
+            background: #fff;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            border-radius: 0 4px 4px 0;
+        }
+        #notifs .info { border-color: #17a2b8; }
+        #notifs .succes { border-color: #28a745; }
+        #notifs .warning { border-color: #ffc107; }
+        #notifs .erreur { border-color: #dc3545; }
+        #notifs b.info { color: #17a2b8; }
+        #notifs b.succes { color: #28a745; }
+        #notifs b.warning { color: #ffc107; }
+        #notifs b.erreur { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <h2>Tableau de Bord — Temps Réel</h2>
+    <!-- Connexion utilisateur pour les notifs personnalisées-->
+    <div>
+        User ID : <input id="uid" value="42" type="text" style="width:80px">
+        <button onclick="connecter()">S'abonner aux notifications</button>
+    </div>
+    <!--Metriques-->
+    <h3>Métriques système</h3>
+    <div id="metriques">
+        <div class="carte"><h3>CPU</h3><div class="val" id="cpu">--</div><small>%</small></div>
+        <div class="carte"><h3>Mémoire</h3><div class="val" id="mem">--</div><small>%</small></div>
+        <div class="carte"><h3>Connexions</h3><div class="val" id="conn">--</div></div>
+        <div class="carte"><h3>Requêtes/s</h3><div class="val" id="req">--</div></div>
+        <div class="carte"><h3>Mise à jour</h3><div class="val" id="heure" style="font-size:0.9em">--</div></div>
+    </div>
+
+    <!--Notifications-->
+    <h3>Notifications reçues</h3>
+    <div id="notifs"></div>
+
+<script>
+    // === Tableau de bord SSE (sans user_id, ouvert pour tous) ===
+    const sse = new EventSource("/sse/dashboard");
+    sse.addEventListener("metriques", (e) => {
+        const d = JSON.parse(e.data);
+        document.getElementById("cpu").textContent = d.cpu;
+        document.getElementById("mem").textContent = d.memoire;
+        document.getElementById("conn").textContent = d.connexions;
+        document.getElementById("req").textContent = d.requetes;
+        document.getElementById("heure").textContent = d.heure.substring(11, 19); // Afficher HH:MM:SS
+    });
+    sse.onerror = () => console.warn("Dashboard SSE déconnecté, reconnexion...");
+
+    // === Notifications SSE personnalisées ===
+    let notifSSE = null;
+    function connecter() {
+        const uid = document.getElementById("uid").value.trim();
+        if (!uid) return;
+        if (notifSSE) notifSSE.close(); // Fermer une précédente connexion
+
+        notifSSE = new EventSource(`/sse/notifs/${uid}`);
+
+        notifSSE.addEventListener("connexion", (e) => {
+            const d = JSON.parse(e.data);
+            afficherNotif("info", "Système", d.message);
+        });
+
+        notifSSE.addEventListener("notification", (e) => {
+            const d = JSON.parse(e.data);
+            afficherNotif(d.niveau, d.titre, d.message);
+        });
+
+        notifSSE.addEventListener("ping", () => {
+            console.log("Heartbeat SSE reçu");
+        });
+
+        notifSSE.onerror = () => console.warn(`SSE notif pour ${uid} déconnecté, reconnexion...`);
+    }
+
+    function afficherNotif(niveau, titre, message) {
+        const div = document.getElementById("notifs");
+        const el = document.createElement("p");
+        el.className = niveau;
+        const heure = new Date().toLocaleTimeString();
+        el.innerHTML = `[${heure}] <b class="${niveau}">[${niveau.toUpperCase()}]</b> <b>${titre}</b> &mdash; ${message}`;
+        div.prepend(el); // Afficher en haut
+    }
+
+    // Ouvrir automatiquement le dashboard SSE
+    sse.addEventListener("connexion", (e) => {
+        console.log("Dashboard connecté", JSON.parse(e.data));
+    });
+
+</script>
+
+</body>
+</html>

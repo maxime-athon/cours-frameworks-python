@@ -45,8 +45,9 @@
       const salle = document.getElementById("salle").value.trim() || "general";
       if (!pseudo) { alert("Pseudo requis !"); return; }
 
+      const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
       // Ouvrir la connexion WebSocket
-      ws = new WebSocket("ws://localhost:8888/ws/chat");
+      ws = new WebSocket(`${proto}//${window.location.host}/ws/chat`);
 
       ws.onopen = () => {
         // Phase d'authentification : choisir salle + pseudo
