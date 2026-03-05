@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Chat Tornado</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 2rem auto; }
+    #msgs { height: 400px; overflow-y: auto; border: 1px solid #ccc;
+            padding: 1rem; background: #f9f9f9; }
+    .msg-message { margin: 4px 0; }
+    .msg-systeme { color: #888; font-style: italic; font-size: 0.85em; }
+    .heure { color: #aaa; font-size: 0.75em; margin-left: 6px; }
+    #saisie { display: flex; gap: 8px; margin-top: 8px; }
+    #input { flex: 1; padding: 8px; }
+    button { padding: 8px 16px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h2>Chat Tornado — Salles en temps réel</h2>
+
+  <!-- Formulaire de connexion -->
+  <div id="form-connexion">
+    <input id="pseudo" placeholder="Votre pseudo" type="text">
+    <input id="salle" placeholder="Salle (general)" type="text" value="general">
+    <button onclick="rejoindre()">Rejoindre</button>
+  </div>
+
+  <!-- Zone de messages (cachée avant connexion) -->
+  <div id="zone-chat" style="display:none">
+    <h3 id="titre-salle"></h3>
+    <div id="msgs"></div>
+    <div id="saisie">
+      <input id="input" placeholder="Votre message..." type="text"
+             onkeydown="if(event.key==='Enter') envoyer()">
+      <button onclick="envoyer()">Envoyer</button>
+    </div>
+    <p><small>Membres : <span id="membres"></span></small></p>
+  </div>
+
+  <script>
+    let ws = null;
+
+    function rejoindre() {
+      const pseudo = document.getElementById("pseudo").value.trim();
+      const salle = document.getElementById("salle").value.trim() || "general";
+      if (!pseudo) { alert("Pseudo requis !"); return; }
+
+      // Ouvrir la connexion WebSocket
+      ws = new WebSocket("ws://localhost:8888/ws/chat");
+
+      ws.onopen = () => {
+        // Phase d'authentification : choisir salle + pseudo
+        ws.send(JSON.stringify({ type: "rejoindre", pseudo, salle }));
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        switch (data.type) {
+          case "rejoint":
+            // Afficher l'interface et l'historique
+            document.getElementById("form-connexion").style.display = "none";
+            document.getElementById("zone-chat").style.display = "block";
+            document.getElementById("titre-salle").textContent = `Salle : ${data.salle}`;
+            document.getElementById("membres").textContent = data.membres.join(", ");
+            // Afficher les 20 derniers messages
+            data.historique.forEach(afficherMessage);
+            break;
+          case "message":
+          case "systeme":
+            afficherMessage(data);
+            // Mettre à jour la liste des membres si présente
+            if (data.membres)
+              document.getElementById("membres").textContent = data.membres.join(", ");
+            break;
+        }
+      };
+
+      ws.onclose = () => afficherSysteme("Déconnecté du serveur.");
+      ws.onerror = () => afficherSysteme("Erreur de connexion.");
+    }
+
+    function envoyer() {
+      const input = document.getElementById("input");
+      const texte = input.value.trim();
+      if (!texte || !ws) return;
+      ws.send(JSON.stringify({ type: "message", texte }));
+      input.value = "";
+    }
+
+    function afficherMessage(msg) {
+      const div = document.getElementById("msgs");
+      const el = document.createElement("p");
+      el.className = `msg-${msg.type}`;
+      el.innerHTML = msg.type === "message"
+        ? `<b>${msg.pseudo}</b> : ${msg.texte}<span class="heure">${msg.heure}</span>`
+        : `${msg.message}<span class="heure">${msg.heure}</span>`;
+      div.appendChild(el);
+      div.scrollTop = div.scrollHeight; // Auto-scroll vers le bas
+    }
+
+    function afficherSysteme(texte) {
+      afficherMessage({ type: "systeme", message: texte, heure: "" });
+    }
+  </script>
+</body>
+</html>
