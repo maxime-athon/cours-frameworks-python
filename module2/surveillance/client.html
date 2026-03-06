@@ -2,40 +2,54 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Client Surveillance IoT</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    h1 { color: #333; }
-    #mesures, #alertes, #historique { margin-top: 20px; }
-    .alerte { color: red; font-weight: bold; }
-    .mesure { color: green; }
-    table { border-collapse: collapse; width: 100%; margin-top: 10px; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-    th { background-color: #f2f2f2; }
-  </style>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <h1>Interface Client Surveillance IoT</h1>
+<body class="bg-gray-100 p-6">
+  <h1 class="text-2xl font-bold text-gray-800 mb-4">Interface Client Surveillance IoT</h1>
 
-  <button onclick="envoyerMesure()">Envoyer mesure test</button>
-
-  <div id="mesures">
-    <h2>Mesures reçues</h2>
-    <ul id="mesures-list"></ul>
+  <!-- Formulaire d’envoi de mesure -->
+  <div class="bg-white shadow-md rounded p-4 mb-6">
+    <h2 class="text-xl font-semibold mb-2">Envoyer une mesure</h2>
+    <div class="grid grid-cols-2 gap-4">
+      <input id="capteur" type="text" placeholder="Nom du capteur" class="border p-2 rounded">
+      <input id="valeur" type="number" placeholder="Valeur" class="border p-2 rounded">
+      <input id="unite" type="text" placeholder="Unité (ex: C)" class="border p-2 rounded">
+      <input id="seuil" type="number" placeholder="Seuil" class="border p-2 rounded">
+    </div>
+    <button onclick="envoyerMesure()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+      Envoyer
+    </button>
   </div>
 
-  <div id="alertes">
-    <h2>Alertes reçues</h2>
-    <ul id="alertes-list"></ul>
+  <!-- Mesures reçues -->
+  <div class="bg-white shadow-md rounded p-4 mb-6">
+    <h2 class="text-xl font-semibold mb-2">Mesures reçues</h2>
+    <ul id="mesures-list" class="list-disc pl-6 text-green-600"></ul>
   </div>
 
-  <div id="historique">
-    <h2>Historique des alertes (API REST)</h2>
-    <button onclick="chargerHistorique()">Charger</button>
-    <table>
+  <!-- Alertes reçues -->
+  <div class="bg-white shadow-md rounded p-4 mb-6">
+    <h2 class="text-xl font-semibold mb-2">Alertes reçues</h2>
+    <ul id="alertes-list" class="list-disc pl-6 text-red-600 font-bold"></ul>
+  </div>
+
+  <!-- Historique des alertes -->
+  <div class="bg-white shadow-md rounded p-4">
+    <h2 class="text-xl font-semibold mb-2">Historique des alertes</h2>
+    <button onclick="chargerHistorique()" class="mb-4 bg-gray-700 text-white px-4 py-2 rounded hover:bg-gray-800">
+      Charger
+    </button>
+    <table class="table-auto w-full border-collapse border border-gray-300">
       <thead>
-        <tr>
-          <th>ID</th><th>Niveau</th><th>Message</th><th>Capteur</th><th>Valeur</th><th>Heure</th>
+        <tr class="bg-gray-200">
+          <th class="border px-2 py-1">ID</th>
+          <th class="border px-2 py-1">Niveau</th>
+          <th class="border px-2 py-1">Message</th>
+          <th class="border px-2 py-1">Capteur</th>
+          <th class="border px-2 py-1">Valeur</th>
+          <th class="border px-2 py-1">Heure</th>
         </tr>
       </thead>
       <tbody id="historique-table"></tbody>
@@ -44,7 +58,8 @@
 
   <script>
     // Connexion WebSocket
-    const ws = new WebSocket("ws://localhost:8888/ws/capteurs");
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/capteurs`);
 
     ws.onopen = () => {
       console.log("Connecté au serveur WebSocket");
@@ -54,44 +69,62 @@
       const data = JSON.parse(event.data);
       if (data.type === "mesure") {
         const li = document.createElement("li");
-        li.className = "mesure";
         li.textContent = `${data.capteur} : ${data.valeur} ${data.unite} (${data.heure})`;
         document.getElementById("mesures-list").appendChild(li);
+
+        // Mettre à jour le graphique
+        realtimeChart.data.labels.push(data.heure);
+        realtimeChart.data.datasets[0].data.push(data.valeur);
+
+        // Limiter le nombre de points dans le graphique
+        if (realtimeChart.data.labels.length > 20) {
+          realtimeChart.data.labels.shift();
+          realtimeChart.data.datasets[0].data.shift();
+        }
+
+        realtimeChart.update();
+
+
+
       } else if (data.type === "alerte") {
         const li = document.createElement("li");
-        li.className = "alerte";
         li.textContent = `${data.message} (${data.heure})`;
         document.getElementById("alertes-list").appendChild(li);
       }
     };
 
-    // Envoyer une mesure de test
+    // Envoyer une mesure depuis le formulaire
     function envoyerMesure() {
+      const capteur = document.getElementById("capteur").value;
+      const valeur = parseFloat(document.getElementById("valeur").value);
+      const unite = document.getElementById("unite").value;
+      const seuil = parseFloat(document.getElementById("seuil").value);
+
       const message = {
         type: "mesure",
-        capteur: "temp1",
-        valeur: 85.3,
-        unite: "C",
-        seuil: 80
+        capteur: capteur,
+        valeur: valeur,
+        unite: unite,
+        seuil: seuil
       };
       ws.send(JSON.stringify(message));
     }
 
     // Charger l’historique via API REST
     async function chargerHistorique() {
-      const response = await fetch("http://localhost:8888/api/alertes?limite=10");
+      const response = await fetch("/api/alertes?limite=10");
       const data = await response.json();
       const table = document.getElementById("historique-table");
       table.innerHTML = "";
       data.alertes.forEach(a => {
         const tr = document.createElement("tr");
         tr.innerHTML = `
-          <td>${a.id}</td>
-          <td>${a.niveau}</td>
-          <td>${a.message}</td>
-          <td>${a.capteur}</td>
-          <td>${a.valeur}</td>
-          <td>${a.timestamp}</td>
+          <td class="border px-2 py-1">${a.id}</td>
+          <td class="border px-2 py-1">${a.niveau}</td>
+          <td class="border px-2 py-1">${a.message}</td>
+          <td class="border px-2 py-1">${a.capteur}</td>
+          <td class="border px-2 py-1">${a.valeur}</td>
+          <td class="border px-2 py-1">${a.timestamp}</td>
         `;
         table.appendChild(tr);
       });

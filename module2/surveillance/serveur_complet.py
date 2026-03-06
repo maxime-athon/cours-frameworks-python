@@ -4,9 +4,10 @@ import tornado.websocket
 import aiosqlite
 import asyncio
 import json
+import os
 from datetime import datetime
 
-DB_PATH = "surveillance.db"
+DB_PATH = os.path.join(os.path.dirname(__file__), "surveillance.db")
 
 # -----------------------------
 # Étape 1 : Initialisation BDD
@@ -61,23 +62,26 @@ class CapteurWSHandler(tornado.websocket.WebSocketHandler):
             return
 
         if data.get("type") == "mesure":
+            valeur = float(data.get("valeur", 0))
+            raw_seuil = data.get("seuil")
+            seuil = float(raw_seuil) if raw_seuil is not None else float("inf")
+
             mesure = {
                 "type": "mesure",
                 "capteur": data["capteur"],
-                "valeur": data["valeur"],
+                "valeur": valeur,
                 "unite": data.get("unite", ""),
                 "heure": datetime.now().isoformat()
             }
 
             # Vérification du seuil
-            seuil = data.get("seuil", float("inf"))
-            if data.get("valeur", 0) > seuil:
+            if valeur > seuil:
                 alerte = {
                     "type": "alerte",
                     "niveau": "warning",
-                    "message": f"Seuil dépassé sur {data['capteur']} ({data['valeur']} > {seuil})",
+                    "message": f"Seuil dépassé sur {data['capteur']} ({valeur} > {seuil})",
                     "capteur": data["capteur"],
-                    "valeur": data["valeur"],
+                    "valeur": valeur,
                     "heure": datetime.now().isoformat()
                 }
                 # Persistance en BDD
@@ -114,6 +118,9 @@ class CapteurWSHandler(tornado.websocket.WebSocketHandler):
 # -----------------------------
 class AlertesHandler(tornado.web.RequestHandler):
     """ GET /api/alertes?limite=50&niveau=warning """
+    def set_default_headers(self):
+        self.set_header("Access-Control-Allow-Origin", "*")
+
     async def get(self):
         limite = int(self.get_argument("limite", "50"))
         niveau = self.get_argument("niveau", None)
@@ -142,6 +149,10 @@ def make_app():
     return tornado.web.Application([
         (r"/ws/capteurs", CapteurWSHandler),
         (r"/api/alertes", AlertesHandler),
+        (r"/(.*)", tornado.web.StaticFileHandler, {
+            "path": os.path.dirname(os.path.abspath(__file__)),
+            "default_filename": "client.html"
+        }),
     ], debug=True)
 
 
