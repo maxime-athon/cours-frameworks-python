@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Client Surveillance IoT</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { color: #333; }
+    #mesures, #alertes, #historique { margin-top: 20px; }
+    .alerte { color: red; font-weight: bold; }
+    .mesure { color: green; }
+    table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
+  </style>
+</head>
+<body>
+  <h1>Interface Client Surveillance IoT</h1>
+
+  <button onclick="envoyerMesure()">Envoyer mesure test</button>
+
+  <div id="mesures">
+    <h2>Mesures reçues</h2>
+    <ul id="mesures-list"></ul>
+  </div>
+
+  <div id="alertes">
+    <h2>Alertes reçues</h2>
+    <ul id="alertes-list"></ul>
+  </div>
+
+  <div id="historique">
+    <h2>Historique des alertes (API REST)</h2>
+    <button onclick="chargerHistorique()">Charger</button>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>Niveau</th><th>Message</th><th>Capteur</th><th>Valeur</th><th>Heure</th>
+        </tr>
+      </thead>
+      <tbody id="historique-table"></tbody>
+    </table>
+  </div>
+
+  <script>
+    // Connexion WebSocket
+    const ws = new WebSocket("ws://localhost:8888/ws/capteurs");
+
+    ws.onopen = () => {
+      console.log("Connecté au serveur WebSocket");
+    };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === "mesure") {
+        const li = document.createElement("li");
+        li.className = "mesure";
+        li.textContent = `${data.capteur} : ${data.valeur} ${data.unite} (${data.heure})`;
+        document.getElementById("mesures-list").appendChild(li);
+      } else if (data.type === "alerte") {
+        const li = document.createElement("li");
+        li.className = "alerte";
+        li.textContent = `${data.message} (${data.heure})`;
+        document.getElementById("alertes-list").appendChild(li);
+      }
+    };
+
+    // Envoyer une mesure de test
+    function envoyerMesure() {
+      const message = {
+        type: "mesure",
+        capteur: "temp1",
+        valeur: 85.3,
+        unite: "C",
+        seuil: 80
+      };
+      ws.send(JSON.stringify(message));
+    }
+
+    // Charger l’historique via API REST
+    async function chargerHistorique() {
+      const response = await fetch("http://localhost:8888/api/alertes?limite=10");
+      const data = await response.json();
+      const table = document.getElementById("historique-table");
+      table.innerHTML = "";
+      data.alertes.forEach(a => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${a.id}</td>
+          <td>${a.niveau}</td>
+          <td>${a.message}</td>
+          <td>${a.capteur}</td>
+          <td>${a.valeur}</td>
+          <td>${a.timestamp}</td>
+        `;
+        table.appendChild(tr);
+      });
+    }
+  </script>
+</body>
+</html>
