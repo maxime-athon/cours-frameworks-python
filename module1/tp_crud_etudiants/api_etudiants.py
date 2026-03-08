@@ -4,6 +4,44 @@ from marshmallow import Schema, fields, validates, ValidationError
 from datetime import datetime
 from sqlalchemy import or_
 
+
+
+
+
+def create_app(config_name="default"):
+    """
+    Factory qui crée et configure l'application Flask.
+    Utilisée par pytest pour lancer l'app en mode 'testing'.
+    """
+    app = Flask(__name__)
+
+    if config_name == "testing":
+        app.config.update(
+            TESTING=True,
+            SQLALCHEMY_DATABASE_URI="sqlite:///:memory:",
+            SQLALCHEMY_TRACK_MODIFICATIONS=False,
+            SECRET_KEY="secret-test"
+        )
+    else:
+        app.config.update(
+            SQLALCHEMY_DATABASE_URI="sqlite:///etudiants.db",
+            SQLALCHEMY_TRACK_MODIFICATIONS=False,
+            SECRET_KEY="secret-key"
+        )
+
+    # Initialiser la base
+    db.init_app(app)
+
+    # Enregistrer les routes déjà définies dans ce fichier
+    with app.app_context():
+        db.create_all()
+
+    return app
+
+
+
+
+
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///etudiants.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
