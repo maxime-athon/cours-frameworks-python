@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Étudiants <span class="badge bg-secondary">{{ total }}</span></h1>
+
+<!-- Formulaire de recherche -->
+<form method="get" class="mb-3">
+    <input type="text" name="q" value="{{ recherche }}" placeholder="Rechercher...">
+    <button type="submit" class="btn btn-primary">Filtrer</button>
+</form>
+
+<!-- Tableau des étudiants -->
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Matricule</th>
+            <th>Nom complet</th>
+            <th>Filière</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for etu in etudiants %}
+        <tr>
+            <td>{{ etu.matricule }}</td>
+            <td>{{ etu.prenom }} {{ etu.nom }}</td>
+            <td>{{ etu.filiere.nom }}</td>
+            <td>
+                <a href="{% url 'etudiants:detail' etu.pk %}" class="btn btn-sm btn-info">Voir</a>
+                <a href="{% url 'etudiants:modifier' etu.pk %}" class="btn btn-sm btn-warning">Modifier</a>
+                <a href="{% url 'etudiants:supprimer' etu.pk %}" class="btn btn-sm btn-danger">Supprimer</a>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="4">Aucun étudiant trouvé.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Pagination -->
+<div class="pagination">
+    {% if etudiants.has_other_pages %}
+        {% if etudiants.has_previous %}
+            <a href="?page={{ etudiants.previous_page_number }}" class="btn btn-outline-secondary">Précédent</a>
+        {% endif %}
+        {% if etudiants.has_next %}
+            <a href="?page={{ etudiants.next_page_number }}" class="btn btn-outline-secondary">Suivant</a>
+        {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

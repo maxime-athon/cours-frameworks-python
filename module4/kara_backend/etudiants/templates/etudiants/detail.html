@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Détails de l'étudiant</h2>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <h4>{{ etudiant.nom_complet }}</h4>
+            <p><strong>Matricule :</strong> {{ etudiant.matricule }}</p>
+            <p><strong>Email :</strong> {{ etudiant.email }}</p>
+            <p><strong>Date de naissance :</strong> {{ etudiant.date_naissance|date:"d/m/Y" }}</p>
+            <p><strong>Filière :</strong> {{ etudiant.filiere.nom }}</p>
+            <p><strong>Année :</strong> {{ etudiant.get_annee_display }}</p>
+            <p><strong>Statut :</strong>
+                {% if etudiant.est_admis %}
+                    <span class="badge bg-success">Admis</span>
+                {% else %}
+                    <span class="badge bg-danger">Échec</span>
+                {% endif %}
+            </p>
+            <p><strong>Moyenne :</strong> {{ etudiant.moyenne }}/20</p>
+            {% if etudiant.photo %}
+                <img src="{{ etudiant.photo.url }}" alt="Photo de {{ etudiant.nom_complet }}" class="img-thumbnail" width="150">
+            {% endif %}
+        </div>
+    </div>
+
+    <h3>Notes</h3>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Matière</th>
+                <th>Semestre</th>
+                <th>Valeur</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for note in etudiant.notes.all %}
+            <tr>
+                <td>{{ note.matiere }}</td>
+                <td>{{ note.semestre }}</td>
+                <td>{{ note.valeur }}/20</td>
+                <td>{{ note.date|date:"d/m/Y" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4">Aucune note enregistrée.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <a href="{% url 'etudiants:modifier' etudiant.pk %}" class="btn btn-warning">Modifier</a>
+    <a href="{% url 'etudiants:supprimer' etudiant.pk %}" class="btn btn-danger">Supprimer</a>
+    <a href="{% url 'etudiants:liste' %}" class="btn btn-secondary">Retour à la liste</a>
+</div>
+{% endblock %}

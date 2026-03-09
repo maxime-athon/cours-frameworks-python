@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Détail de {{ etudiant.nom_complet }}{% endblock %}
+
+{% block content %}
+<h1>{{ etudiant.nom_complet }} ({{ etudiant.matricule }})</h1>
+<hr>
+<div class="card">
+    <div class="card-body">
+        <p><strong>Email :</strong> {{ etudiant.email }}</p>
+        <p><strong>Date de naissance :</strong> {{ etudiant.date_naissance|date:"d/m/Y"|default:"Non renseignée" }}</p>
+        <p><strong>Filière :</strong> {{ etudiant.filiere }}</p>
+        <p><strong>Année :</strong> {{ etudiant.get_annee_display }}</p>
+        <p><strong>Inscrit le :</strong> {{ etudiant.date_inscription|date:"d/m/Y à H:i" }}</p>
+        <hr>
+        <h3>Notes</h3>
+        <ul>
+            {% for note in etudiant.notes.all %}
+                <li>{{ note.matiere }} ({{ note.semestre }}) : <strong>{{ note.valeur }}/20</strong></li>
+            {% empty %}
+                <li>Aucune note enregistrée.</li>
+            {% endfor %}
+        </ul>
+        <p><strong>Moyenne :</strong> {{ etudiant.moyenne }}/20</p>
+    </div>
+</div>
+<a href="{% url 'etudiants:liste' %}" class="btn btn-secondary mt-3">Retour à la liste</a>
+{% endblock %}
