@@ -12,7 +12,8 @@ Il s’agit d’un espace d’apprentissage, pas de projets professionnels final
 ## Organisation du dépôt
 - `module0_frameworks_python/` → Introduction générale aux frameworks Python  
 - `module1_flask/` → TP CRUD Étudiants avec Flask  
-- `module2_django/` → Exercices Django (à venir)  
+- `module2_Tornado/` → Exercices Tornado
+ - `module4_django/` → Exercices Django
 
 ## Objectif
 👉 Montrer que je suis **en formation** et que ce dépôt est un **support pédagogique**.  
