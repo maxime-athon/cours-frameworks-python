@@ -3,13 +3,20 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 from rest_framework.test import APITestCase
 from rest_framework import status
-from .models import Etudiant, Filiere, Note
+from unittest.mock import patch
+from etudiants.models import Etudiant, Filiere, Note
 
 # ============================================================
 # TESTS DES MODELES
 # ============================================================
 class EtudiantModelTest(TestCase):
     def setUp(self):
+        # On mock la tâche asynchrone pour ne pas polluer la sortie des tests
+        # et pour isoler notre test des services externes (email, etc.)
+        patcher = patch('etudiants.signals.envoyer_email_bienvenue.delay')
+        self.mock_delay = patcher.start()
+        self.addCleanup(patcher.stop)
+
         self.filiere = Filiere.objects.create(code='L3', nom='Licence 3')
         self.etudiant = Etudiant.objects.create(
             nom='Mensah', prenom='Amina', email='amina@kara.tg',
@@ -38,12 +45,21 @@ class EtudiantModelTest(TestCase):
         Note.objects.create(etudiant=self.etudiant, matiere='Maths', valeur=8.0, semestre='S1')
         self.assertFalse(self.etudiant.est_admis)
 
+    def test_signal_bienvenue_envoye(self):
+        """Vérifie que le signal d'envoi d'email est bien appelé à la création."""
+        # L'étudiant a été créé dans setUp(), on vérifie que le mock a été appelé.
+        self.mock_delay.assert_called_once_with('amina@kara.tg', 'Amina Mensah')
+
 
 # ============================================================
 # TESTS DE L'API REST (DRF)
 # ============================================================
 class EtudiantAPITest(APITestCase):
     def setUp(self):
+        patcher = patch('etudiants.signals.envoyer_email_bienvenue.delay')
+        self.mock_delay = patcher.start()
+        self.addCleanup(patcher.stop)
+
         self.filiere = Filiere.objects.create(code='L2', nom='Licence 2')
         self.user = User.objects.create_user(username='testuser', password='Azerty123!')
         # Obtenir le token JWT
@@ -51,10 +67,14 @@ class EtudiantAPITest(APITestCase):
         rep = self.client.post(url, {'username': 'testuser', 'password': 'Azerty123!'}, format='json')
         self.token = rep.data['access']
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token}')
+
         self.etudiant = Etudiant.objects.create(
             nom='Test', prenom='User', email='test@kara.tg',
             matricule='UK2024999', filiere=self.filiere, annee=2
         )
+        # Le mock a été appelé une fois dans le setup, on le réinitialise
+        # pour que les tests suivants partent d'un état propre.
+        self.mock_delay.reset_mock()
 
     def test_lister_etudiants(self):
         url = reverse('etudiant-list')
@@ -72,6 +92,8 @@ class EtudiantAPITest(APITestCase):
         rep = self.client.post(url, donnees, format='json')
         self.assertEqual(rep.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Etudiant.objects.count(), 2)
+        # On vérifie que la tâche asynchrone a bien été appelée
+        self.mock_delay.assert_called_once_with('jean@kara.tg', 'Jean Koffi')
 
     def test_email_duplique_retourne_400(self):
         url = reverse('etudiant-list')

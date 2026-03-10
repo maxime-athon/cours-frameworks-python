@@ -1,0 +1,15 @@
+[run]
+source = .
+omit =
+    */venv/*
+    */migrations/*
+    etudiants/tests.py
+    etudiants/apps.py
+    etudiants/admin.py
+    etudiants/tasks.py
+    kara_backend/*
+    manage.py
+
+[report]
+show_missing = True
+skip_covered = True
